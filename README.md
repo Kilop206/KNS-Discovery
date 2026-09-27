@@ -8,13 +8,38 @@ neighbor cache. It does not scan ports, capture traffic or change network settin
 An empty cache is not evidence that a network has no other devices. Hidden switches,
 access points and device models cannot be reliably inferred from ARP/NDP alone.
 
-## Implementation stages
+## Implemented stages
 
 1. Define the versioned snapshot contract and repository structure.
 2. Implement Windows/Linux collection, deterministic topology generation, inventory
    overrides, atomic output and watch mode, with fixture tests.
 3. Extend KNS with device metadata and identity-based live reconciliation.
 4. Connect live snapshots to the desktop, verify interoperability and document usage.
+
+## Build and run
+
+From this repository on Windows:
+
+```powershell
+go build -o bin/kns-discovery.exe ./cmd/kns-discovery
+.\bin\kns-discovery.exe --output output/network.json --watch 5s
+```
+
+After the first snapshot is published, launch the sibling KNS desktop from a
+second terminal in this repository:
+
+```powershell
+..\KNS\build\app\Release\KNS.exe --watch-topology output/network.json
+```
+
+See [KNS live discovery usage](../KNS/docs/discovery.md) for build instructions,
+desktop editing, inventory overrides and update behavior. On Linux, build with
+`go build -o bin/kns-discovery ./cmd/kns-discovery` and run `./bin/kns-discovery`.
+Omit `--watch` for a single snapshot. Use `--interface` to select an exact interface
+name and `--inventory` for a JSON map of `external_id` to `label`/`type` overrides.
+Inventory is loaded at startup. Stop watch mode with Ctrl+C.
+
+Verify with `go test ./...` and `go vet ./...`.
 
 ## Snapshot contract
 
