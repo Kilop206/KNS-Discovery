@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"kns.local/discovery/internal/discovery"
-	"kns.local/discovery/internal/snapshot"
 )
 
 func main() {
@@ -42,15 +40,6 @@ func run() error {
 		return fmt.Errorf("output must be a file path")
 	}
 	options := discovery.Options{Interface: *iface, Bandwidth: *bandwidth, Delay: *delay}
-	if *inventory != "" {
-		data, err := os.ReadFile(*inventory)
-		if err != nil {
-			return fmt.Errorf("inventory: %w", err)
-		}
-		if err := json.Unmarshal(data, &options.Inventory); err != nil {
-			return fmt.Errorf("inventory: %w", err)
-		}
-	}
 	if err := os.MkdirAll(filepath.Dir(*output), 0700); err != nil {
 		return err
 	}
@@ -59,29 +48,7 @@ func run() error {
 	collect := func() error {
 		attempt, cancel := context.WithTimeout(ctx, *timeout)
 		defer cancel()
-		observation, err := discovery.Collect(attempt)
-		if err != nil {
-			return err
-		}
-		topology, err := discovery.Build(observation, options)
-		if err != nil {
-			return err
-		}
-		data, err := json.MarshalIndent(topology, "", "  ")
-		if err != nil {
-			return err
-		}
-		changed, err := snapshot.Write(*output, append(data, '\n'))
-		if err != nil {
-			return err
-		}
-		if changed {
-			slog.Info("topology published", "nodes", len(topology.Nodes), "links", len(topology.Links), "output", *output)
-		}
-		for _, warning := range topology.Warnings {
-			slog.Warn(warning)
-		}
-		return nil
+		return publishSnapshot(attempt, *output, *inventory, options, discovery.Collect)
 	}
 	if err := collect(); err != nil {
 		return err

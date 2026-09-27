@@ -37,7 +37,9 @@ desktop editing, inventory overrides and update behavior. On Linux, build with
 `go build -o bin/kns-discovery ./cmd/kns-discovery` and run `./bin/kns-discovery`.
 Omit `--watch` for a single snapshot. Use `--interface` to select an exact interface
 name and `--inventory` for a JSON map of `external_id` to `label`/`type` overrides.
-Inventory is loaded at startup. Stop watch mode with Ctrl+C.
+Inventory is reloaded on each collection, so edits apply without restarting watch
+mode. Use `{}` to clear overrides. Invalid or missing inventory files retain the
+last published snapshot until corrected. Stop watch mode with Ctrl+C.
 
 Verify with `go test ./...` and `go vet ./...`.
 
