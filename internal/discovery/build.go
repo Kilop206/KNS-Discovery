@@ -25,17 +25,25 @@ func normalizedMAC(value string) string {
 	return mac.String()
 }
 
-// Build produces a deterministic logical adjacency graph. It never claims that
-// a neighbor cache identifies physical cables or a neighbor's hardware class.
-func Build(observation Observation, options Options) (Snapshot, error) {
+// ValidateOptions checks configuration independently of network availability.
+func ValidateOptions(options Options) error {
 	if options.Bandwidth <= 0 || math.IsNaN(options.Bandwidth) || math.IsInf(options.Bandwidth, 0) ||
 		options.Delay < 0 || math.IsNaN(options.Delay) || math.IsInf(options.Delay, 0) {
-		return Snapshot{}, fmt.Errorf("simulation bandwidth must be finite and positive; delay must be finite and nonnegative")
+		return fmt.Errorf("simulation bandwidth must be finite and positive; delay must be finite and nonnegative")
 	}
 	for identity, override := range options.Inventory {
 		if override.Type != "" && !ValidDeviceType(override.Type) {
-			return Snapshot{}, fmt.Errorf("inventory %q has unknown device type %q", identity, override.Type)
+			return fmt.Errorf("inventory %q has unknown device type %q", identity, override.Type)
 		}
+	}
+	return nil
+}
+
+// Build produces a deterministic logical adjacency graph. It never claims that
+// a neighbor cache identifies physical cables or a neighbor's hardware class.
+func Build(observation Observation, options Options) (Snapshot, error) {
+	if err := ValidateOptions(options); err != nil {
+		return Snapshot{}, err
 	}
 	result := Snapshot{SchemaVersion: "1.0", Name: "Local network", Nodes: []Node{}, Links: []Link{}}
 	nodes := map[string]Node{}

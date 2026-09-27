@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -40,6 +39,9 @@ func run() error {
 		return fmt.Errorf("output must be a file path")
 	}
 	options := discovery.Options{Interface: *iface, Bandwidth: *bandwidth, Delay: *delay}
+	if err := discovery.ValidateOptions(options); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(*output), 0700); err != nil {
 		return err
 	}
@@ -50,21 +52,37 @@ func run() error {
 		defer cancel()
 		return publishSnapshot(attempt, *output, *inventory, options, discovery.Collect)
 	}
-	if err := collect(); err != nil {
-		return err
-	}
 	if *interval == 0 {
-		return nil
+		err := collect()
+		if ctx.Err() != nil {
+			return nil
+		}
+		return err
 	}
 	ticker := time.NewTicker(*interval)
 	defer ticker.Stop()
+	return watchSnapshots(ctx, ticker.C, collect)
+}
+
+// Attempt immediately, then retry on ticks even if the first collection fails.
+// Keeping ticks injectable lets tests exercise recovery without real-time waits.
+func watchSnapshots(ctx context.Context, ticks <-chan time.Time, collect func() error) error {
 	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+		if err := collect(); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			slog.Error("collection failed; snapshot unchanged; will retry", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.C:
-			if err := collect(); err != nil && !errors.Is(err, context.Canceled) {
-				slog.Error("collection failed; retaining previous snapshot", "error", err)
+		case _, open := <-ticks:
+			if !open {
+				return nil
 			}
 		}
 	}

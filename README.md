@@ -41,6 +41,12 @@ Inventory is reloaded on each collection, so edits apply without restarting watc
 mode. Use `{}` to clear overrides. Invalid or missing inventory files retain the
 last published snapshot until corrected. Stop watch mode with Ctrl+C.
 
+Watch mode retries failed collections at the configured interval, including a
+failure on the first attempt. An offline interface, collection timeout or invalid
+inventory never replaces the last good snapshot. No output is published until a
+collection succeeds. Invalid static options (such as negative bandwidth) still
+fail immediately; single-collection mode reports collection failures and exits.
+
 Verify with `go test ./...` and `go vet ./...`.
 
 ## Snapshot contract
