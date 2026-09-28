@@ -5,6 +5,19 @@ standard library. This is a separate repository from KNS.
 
 The collector reads active interfaces, default routes and the operating system's
 neighbor cache. It does not scan ports, capture traffic or change network settings.
+By default it also resolves names for observed neighbors through the OS DNS
+resolver. Up to eight queries run concurrently, with a 750 ms timeout per query
+and a three-second budget per collection. Positive answers are cached for ten
+minutes and negative answers for one minute in watch mode. Cache entries are
+scoped by interface, IP and MAC, and removed when the device disappears.
+Use `--resolve-names=false` to disable name lookups. Unresolved devices remain
+in the snapshot with their IP labels; link-local addresses are not queried.
+
+Recognizable hostnames (for example `desktop-*`, `iphone-*`, `office-printer`,
+or `synology-*`) provide conservative type hints, recorded as `hostname_hint`
+in `evidence`; resolved names are marked `reverse_dns`. These hints are not
+hardware verification. Default-route evidence takes priority for routers, and
+inventory labels/types always take priority over automatic identification.
 An empty cache is not evidence that a network has no other devices. Hidden switches,
 access points and device models cannot be reliably inferred from ARP/NDP alone.
 

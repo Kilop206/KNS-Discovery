@@ -8,6 +8,7 @@ type Observation struct {
 	Interfaces []Interface
 	Neighbors  []Neighbor
 	Gateways   []Gateway
+	Names      map[string]string // Interface-scoped addresses resolved by the OS resolver.
 }
 
 type Interface struct {

@@ -79,7 +79,6 @@ func Build(observation Observation, options Options) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("no active IP interfaces match %q", options.Interface)
 	}
 	neighborByAddress := map[string]Neighbor{}
-	addressKey := func(index int, address netip.Addr) string { return strconv.Itoa(index) + ":" + address.String() }
 	for _, neighbor := range observation.Neighbors {
 		switch strings.ToLower(neighbor.State) {
 		case "reachable", "stale", "delay", "probe", "permanent":
@@ -124,9 +123,23 @@ func Build(observation Observation, options Options) (Snapshot, error) {
 			node = Node{ExternalID: identity, Label: address.String(), Type: "unknown", MAC: mac, Evidence: "neighbor_cache"}
 		}
 		node.Addresses = append(node.Addresses, address.String())
+		if name := observation.Names[addressKey(index, address)]; name != "" && !strings.Contains(node.Evidence, "+reverse_dns") {
+			node.Label = name
+			node.Evidence += "+reverse_dns"
+			if node.Type == "unknown" {
+				node.Type = typeFromHostname(name)
+				if node.Type != "unknown" {
+					node.Evidence += "+hostname_hint"
+				}
+			}
+		}
 		if gateway {
 			node.Type = "router"
+			resolvedName := strings.Contains(node.Evidence, "+reverse_dns")
 			node.Evidence = "default_route"
+			if resolvedName {
+				node.Evidence += "+reverse_dns"
+			}
 		}
 		nodes[identity] = node
 		edges[[2]string{identity, segmentID(index, selected)}] = true

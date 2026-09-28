@@ -25,6 +25,7 @@ func run() error {
 	interval := flag.Duration("watch", 0, "repeat interval, e.g. 5s; zero collects once")
 	timeout := flag.Duration("timeout", 15*time.Second, "deadline for each OS collection")
 	iface := flag.String("interface", "", "exact interface name; empty includes all active interfaces")
+	resolveNames := flag.Bool("resolve-names", true, "resolve device names with cached, bounded DNS queries")
 	inventory := flag.String("inventory", "", "JSON object mapping external_id to label/type overrides")
 	bandwidth := flag.Float64("bandwidth", 100, "assumed simulated link bandwidth in Mbps")
 	delay := flag.Float64("delay", 1, "assumed simulated link delay in milliseconds")
@@ -47,10 +48,18 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	identifier := discovery.NewIdentifier()
+	collector := func(ctx context.Context) (discovery.Observation, error) {
+		observation, err := discovery.Collect(ctx)
+		if err == nil && *resolveNames {
+			identifier.Enrich(ctx, &observation, *iface)
+		}
+		return observation, err
+	}
 	collect := func() error {
 		attempt, cancel := context.WithTimeout(ctx, *timeout)
 		defer cancel()
-		return publishSnapshot(attempt, *output, *inventory, options, discovery.Collect)
+		return publishSnapshot(attempt, *output, *inventory, options, collector)
 	}
 	if *interval == 0 {
 		err := collect()
