@@ -78,17 +78,7 @@ func Build(observation Observation, options Options) (Snapshot, error) {
 	if len(segments) == 0 {
 		return Snapshot{}, fmt.Errorf("no active IP interfaces match %q", options.Interface)
 	}
-	neighborByAddress := map[string]Neighbor{}
-	for _, neighbor := range observation.Neighbors {
-		switch strings.ToLower(neighbor.State) {
-		case "reachable", "stale", "delay", "probe", "permanent":
-		default:
-			continue
-		}
-		if usableAddress(neighbor.Address) && normalizedMAC(neighbor.MAC) != "" {
-			neighborByAddress[addressKey(neighbor.Interface, neighbor.Address)] = neighbor
-		}
-	}
+	neighborByAddress := observedNeighbors(observation)
 	addEndpoint := func(index int, address netip.Addr, gateway bool) {
 		if !usableAddress(address) {
 			return

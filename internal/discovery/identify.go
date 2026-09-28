@@ -68,13 +68,8 @@ func (identifier *Identifier) Enrich(ctx context.Context, observation *Observati
 		key := addressKey(index, address)
 		jobsByKey[key] = job{key, key + ":" + iface.Name + ":" + normalizedMAC(mac), address.String()}
 	}
-	for _, neighbor := range observation.Neighbors {
-		switch strings.ToLower(neighbor.State) {
-		case "reachable", "stale", "delay", "probe", "permanent":
-			if normalizedMAC(neighbor.MAC) != "" {
-				add(neighbor.Interface, neighbor.Address, neighbor.MAC)
-			}
-		}
+	for _, neighbor := range observedNeighbors(*observation) {
+		add(neighbor.Interface, neighbor.Address, neighbor.MAC)
 	}
 	for _, gateway := range observation.Gateways {
 		if _, exists := jobsByKey[addressKey(gateway.Interface, gateway.Address)]; !exists {
