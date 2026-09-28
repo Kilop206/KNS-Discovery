@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"net"
 	"net/netip"
 	"strings"
 	"sync/atomic"
@@ -159,5 +160,60 @@ func TestHostnameHintsAreConservative(t *testing.T) {
 	}
 	if preferredName([]string{"192.0.2.1", "bad\nname", "valid.local."}) != "valid.local" {
 		t.Fatal("invalid resolved name accepted")
+	}
+}
+
+func TestIdentifierRetainsNamesOnlyForBoundedTransientFailures(t *testing.T) {
+	for _, failure := range []struct {
+		name   string
+		err    error
+		retain bool
+	}{
+		{"timeout", context.DeadlineExceeded, true},
+		{"temporary", &net.DNSError{IsTemporary: true}, true},
+		{"missing", &net.DNSError{IsNotFound: true}, false},
+		{"empty", nil, false},
+	} {
+		t.Run(failure.name, func(t *testing.T) {
+			identifier := NewIdentifier()
+			now := time.Unix(1000, 0)
+			identifier.now = func() time.Time { return now }
+			identifier.lookup = func(context.Context, string) ([]string, error) { return []string{"office-printer.local"}, nil }
+			observation := fixture()
+			identifier.Enrich(context.Background(), &observation, "")
+			identifier.lookup = func(context.Context, string) ([]string, error) { return nil, failure.err }
+			now = now.Add(11 * time.Minute)
+			identifier.Enrich(context.Background(), &observation, "")
+			if (observation.Names["7:192.0.2.20"] != "") != failure.retain {
+				t.Fatalf("unexpected refresh result: %v", observation.Names)
+			}
+			now = now.Add(20 * time.Minute)
+			identifier.Enrich(context.Background(), &observation, "")
+			if len(observation.Names) != 0 {
+				t.Fatal("stale names survived the maximum retention period")
+			}
+			identifier.lookup = func(context.Context, string) ([]string, error) { return []string{"renamed-printer.local"}, nil }
+			now = now.Add(2 * time.Minute)
+			identifier.Enrich(context.Background(), &observation, "")
+			if observation.Names["7:192.0.2.20"] != "renamed-printer.local" {
+				t.Fatal("resolution did not recover")
+			}
+		})
+	}
+}
+
+func TestIdentifierKeepsCachedNameWhenRefreshBudgetExpires(t *testing.T) {
+	identifier := NewIdentifier()
+	now := time.Unix(1000, 0)
+	identifier.now = func() time.Time { return now }
+	identifier.lookup = func(context.Context, string) ([]string, error) { return []string{"office-printer.local"}, nil }
+	observation := fixture()
+	identifier.Enrich(context.Background(), &observation, "")
+	now = now.Add(11 * time.Minute)
+	identifier.budget = time.Millisecond
+	identifier.lookup = func(ctx context.Context, _ string) ([]string, error) { <-ctx.Done(); return nil, ctx.Err() }
+	identifier.Enrich(context.Background(), &observation, "")
+	if observation.Names["7:192.0.2.20"] != "office-printer.local" {
+		t.Fatal("refresh deadline discarded an existing name")
 	}
 }

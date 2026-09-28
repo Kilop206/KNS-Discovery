@@ -10,6 +10,9 @@ resolver. Up to eight queries run concurrently, with a 750 ms timeout per query
 and a three-second budget per collection. Positive answers are cached for ten
 minutes and negative answers for one minute in watch mode. Cache entries are
 scoped by interface, IP and MAC, and removed when the device disappears.
+Temporary DNS failures retain an existing name for at most thirty minutes after
+its last successful lookup, retrying after one minute. A definitive missing-name
+answer clears it immediately; transient failures never extend the retention limit.
 Use `--resolve-names=false` to disable name lookups. Unresolved devices remain
 in the snapshot with their IP labels; link-local addresses are not queried.
 

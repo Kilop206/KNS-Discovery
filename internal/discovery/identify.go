@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"slices"
@@ -16,8 +17,9 @@ func addressKey(index int, address netip.Addr) string {
 }
 
 type nameEntry struct {
-	name    string
-	expires time.Time
+	name       string
+	expires    time.Time
+	staleUntil time.Time
 }
 
 // Identifier is reused between sequential collection attempts. Queries are
@@ -84,11 +86,11 @@ func (identifier *Identifier) Enrich(ctx context.Context, observation *Observati
 	jobs := make([]job, 0, len(jobsByKey))
 	for _, job := range jobsByKey {
 		active[job.cacheKey] = true
-		if entry, ok := identifier.cache[job.cacheKey]; ok && now.Before(entry.expires) {
-			if entry.name != "" {
-				observation.Names[job.key] = entry.name
-			}
-		} else {
+		entry, cached := identifier.cache[job.cacheKey]
+		if cached && entry.name != "" && now.Before(entry.staleUntil) {
+			observation.Names[job.key] = entry.name
+		}
+		if !cached || !now.Before(entry.expires) {
 			jobs = append(jobs, job)
 		}
 	}
@@ -123,14 +125,27 @@ func (identifier *Identifier) Enrich(ctx context.Context, observation *Observati
 				if err == nil {
 					name = preferredName(names)
 				}
-				ttl := time.Minute
-				if name != "" {
-					ttl = 10 * time.Minute
-				}
 				mutex.Lock()
-				identifier.cache[job.cacheKey] = nameEntry{name, identifier.now().Add(ttl)}
+				now := identifier.now()
+				entry := nameEntry{name: name, expires: now.Add(time.Minute)}
+				if name != "" {
+					entry.expires = now.Add(10 * time.Minute)
+					entry.staleUntil = now.Add(30 * time.Minute)
+				} else {
+					var dnsError *net.DNSError
+					notFound := errors.As(err, &dnsError) && dnsError.IsNotFound
+					previous := identifier.cache[job.cacheKey]
+					if err != nil && !notFound && now.Before(previous.staleUntil) {
+						entry.name = previous.name
+						entry.staleUntil = previous.staleUntil
+					}
+				}
+				identifier.cache[job.cacheKey] = entry
+				name = entry.name
 				if name != "" {
 					observation.Names[job.key] = name
+				} else {
+					delete(observation.Names, job.key)
 				}
 				mutex.Unlock()
 			}
