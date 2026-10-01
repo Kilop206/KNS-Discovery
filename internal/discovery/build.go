@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+// MaxNodes matches the KNS snapshot loader; oversized observations must not
+// replace a usable snapshot with one the simulator cannot import.
+const MaxNodes = 4096
+
 func usableAddress(address netip.Addr) bool {
 	return address.IsValid() && !address.IsUnspecified() && !address.IsLoopback() && !address.IsMulticast()
 }
@@ -150,6 +154,9 @@ func Build(observation Observation, options Options) (Snapshot, error) {
 	})
 	for _, gateway := range gateways {
 		addEndpoint(gateway.Interface, gateway.Address, true)
+	}
+	if len(nodes) > MaxNodes {
+		return Snapshot{}, fmt.Errorf("discovery contains %d nodes; KNS supports at most %d; select --interface to narrow collection", len(nodes), MaxNodes)
 	}
 	keys = keys[:0]
 	for key := range nodes {

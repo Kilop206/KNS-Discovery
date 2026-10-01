@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/netip"
 	"slices"
@@ -106,5 +107,27 @@ func TestDisappearingNeighborIsRemovedWithoutInventingDevices(t *testing.T) {
 	}
 	if len(result.Nodes) != 3 || len(result.Links) != 2 {
 		t.Fatal(result)
+	}
+}
+func TestSnapshotNodeLimitMatchesKNS(t *testing.T) {
+	observation := Observation{Hostname: "limit-test",
+		Interfaces: []Interface{{Index: 1, Name: "test", Prefixes: []netip.Prefix{
+			netip.MustParsePrefix("10.0.0.1/16"),
+		}}}}
+	for i := 2; i < MaxNodes; i++ {
+		observation.Neighbors = append(observation.Neighbors, Neighbor{
+			1, netip.AddrFrom4([4]byte{10, 0, byte(i >> 8), byte(i)}),
+			fmt.Sprintf("02:00:00:00:%02x:%02x", i>>8, i&255), "reachable",
+		})
+	}
+	result, err := Build(observation, Options{Bandwidth: 100, Delay: 1})
+	if err != nil || len(result.Nodes) != MaxNodes {
+		t.Fatalf("boundary: %d %v", len(result.Nodes), err)
+	}
+	observation.Neighbors = append(observation.Neighbors, Neighbor{
+		1, netip.MustParseAddr("10.0.16.0"), "02:00:00:00:10:00", "reachable",
+	})
+	if _, err := Build(observation, Options{Bandwidth: 100, Delay: 1}); err == nil {
+		t.Fatal("oversized snapshot accepted")
 	}
 }

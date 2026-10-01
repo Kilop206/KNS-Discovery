@@ -97,3 +97,6 @@ is based on its routing role, not hardware fingerprinting.
 Links to a network segment represent inferred adjacency, not verified cables.
 Bandwidth, delay and loss are explicit simulation assumptions, not measurements.
 Snapshots contain local network identifiers: generated output is ignored by Git.
+Snapshots are limited to 4096 nodes, matching the KNS importer. Oversized
+collections fail without replacing the last published snapshot; select
+`--interface` to narrow the observation rather than silently dropping devices.
