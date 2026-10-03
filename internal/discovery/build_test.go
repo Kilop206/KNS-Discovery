@@ -50,6 +50,55 @@ func TestBuildLogicalTopology(t *testing.T) {
 	}
 }
 
+
+func TestSnapshotSerializationConformsToTopologyV1ProducerContract(t *testing.T) {
+	result, err := Build(fixture(), Options{Bandwidth: 100, Delay: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	if document["schema_version"] != "1.0" {
+		t.Fatalf("unexpected schema_version: %v", document["schema_version"])
+	}
+	nodes, ok := document["nodes"].([]any)
+	if !ok || len(nodes) == 0 {
+		t.Fatal("nodes must serialize as a non-empty array")
+	}
+	links, ok := document["links"].([]any)
+	if !ok {
+		t.Fatal("links must serialize as an array")
+	}
+	for _, value := range nodes {
+		node := value.(map[string]any)
+		if _, ok := node["id"].(float64); !ok {
+			t.Fatalf("node missing numeric id: %v", node)
+		}
+		if kind, ok := node["type"].(string); !ok || !ValidDeviceType(kind) {
+			t.Fatalf("invalid node type: %v", node["type"])
+		}
+	}
+	for _, value := range links {
+		link := value.(map[string]any)
+		if link["bandwidth"].(float64) <= 0 || link["delay"].(float64) < 0 {
+			t.Fatalf("invalid serialized link metrics: %v", link)
+		}
+		loss := link["loss"].(float64)
+		if loss < 0 || loss > 1 {
+			t.Fatalf("invalid serialized link loss: %v", loss)
+		}
+		if _, ok := link["inferred"].(bool); !ok {
+			t.Fatalf("inferred must serialize as boolean: %v", link)
+		}
+	}
+}
+
 func TestDeterminismAndInventory(t *testing.T) {
 	observation := fixture()
 	options := Options{Bandwidth: 100, Delay: 1, Inventory: map[string]Override{
