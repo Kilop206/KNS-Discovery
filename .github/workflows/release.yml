@@ -52,7 +52,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/${{ matrix.output }}" ./cmd/kns-discovery
+          go build -trimpath -ldflags="-s -w" -o "dist/${{ matrix.output }}" ./cmd/kns-discovery
 
       - name: Archive Linux
         if: runner.os == 'Linux'
