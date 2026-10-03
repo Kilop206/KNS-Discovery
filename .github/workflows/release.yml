@@ -33,6 +33,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate release tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          test "$(tr -d '\r\n' < VERSION)" = "$VERSION"
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
