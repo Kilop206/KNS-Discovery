@@ -22,6 +22,7 @@ func main() {
 
 func run() error {
 	output := flag.String("output", "output/network.json", "KNS topology snapshot file")
+	diffOutput := flag.String("diff-output", "", "optional structured diff JSON comparing each collection with the previous snapshot")
 	interval := flag.Duration("watch", 0, "repeat interval, e.g. 5s; zero collects once")
 	timeout := flag.Duration("timeout", 15*time.Second, "deadline for each OS collection")
 	iface := flag.String("interface", "", "exact interface name; empty includes all active interfaces")
@@ -38,6 +39,9 @@ func run() error {
 	}
 	if *output == "" {
 		return fmt.Errorf("output must be a file path")
+	}
+	if *diffOutput != "" && filepath.Clean(*diffOutput) == filepath.Clean(*output) {
+		return fmt.Errorf("diff-output must be different from output")
 	}
 	options := discovery.Options{Interface: *iface, Bandwidth: *bandwidth, Delay: *delay}
 	if err := discovery.ValidateOptions(options); err != nil {
@@ -59,7 +63,7 @@ func run() error {
 	collect := func() error {
 		attempt, cancel := context.WithTimeout(ctx, *timeout)
 		defer cancel()
-		return publishSnapshot(attempt, *output, *inventory, options, collector)
+		return publishSnapshotWithDiff(attempt, *output, *diffOutput, *inventory, options, collector)
 	}
 	if *interval == 0 {
 		err := collect()
