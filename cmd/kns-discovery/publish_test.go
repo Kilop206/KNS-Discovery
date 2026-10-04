@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"kns.local/discovery/internal/diff"
 	"kns.local/discovery/internal/discovery"
 )
 
@@ -138,5 +139,55 @@ func TestPublishDoesNotReplaceSnapshotAfterCollectionFailureOrCancellation(t *te
 	}
 	if !bytes.Equal(original, readBytes(t, output)) {
 		t.Fatal("failed or canceled collection changed the snapshot")
+	}
+}
+
+func TestPublishWritesStructuredDiffAcrossCollections(t *testing.T) {
+	directory := t.TempDir()
+	inventory := filepath.Join(directory, "inventory.json")
+	output := filepath.Join(directory, "network.json")
+	diffOutput := filepath.Join(directory, "network.diff.json")
+	options := discovery.Options{Bandwidth: 100, Delay: 1}
+
+	writeInventory(t, inventory, "{}")
+	if err := publishSnapshotWithDiff(
+		context.Background(), output, diffOutput, inventory, options, fixtureCollector,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	var initial diff.Result
+	if err := json.Unmarshal(readBytes(t, diffOutput), &initial); err != nil {
+		t.Fatal(err)
+	}
+	if initial.BaselineAvailable || len(initial.AddedNodes) == 0 {
+		t.Fatalf("unexpected initial diff: %+v", initial)
+	}
+
+	if err := publishSnapshotWithDiff(
+		context.Background(), output, diffOutput, inventory, options, fixtureCollector,
+	); err != nil {
+		t.Fatal(err)
+	}
+	var unchanged diff.Result
+	if err := json.Unmarshal(readBytes(t, diffOutput), &unchanged); err != nil {
+		t.Fatal(err)
+	}
+	if !unchanged.BaselineAvailable || !unchanged.Empty() {
+		t.Fatalf("unchanged collection produced diff: %+v", unchanged)
+	}
+
+	writeInventory(t, inventory, "{\"host:example\":{\"label\":\"Renamed\"}}")
+	if err := publishSnapshotWithDiff(
+		context.Background(), output, diffOutput, inventory, options, fixtureCollector,
+	); err != nil {
+		t.Fatal(err)
+	}
+	var changed diff.Result
+	if err := json.Unmarshal(readBytes(t, diffOutput), &changed); err != nil {
+		t.Fatal(err)
+	}
+	if len(changed.ChangedNodes) != 1 || changed.ChangedNodes[0] != "host:example" {
+		t.Fatalf("inventory change not reflected in diff: %+v", changed)
 	}
 }
