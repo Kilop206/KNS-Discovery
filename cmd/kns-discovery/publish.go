@@ -15,6 +15,10 @@ import (
 
 type collector func(context.Context) (discovery.Observation, error)
 
+type remoteSnapshotPublisher interface {
+	Publish(context.Context, discovery.Snapshot) error
+}
+
 // Each attempt reads a fresh inventory. Invalid or partially written input never
 // publishes a graph and removed overrides do not survive in an old map.
 func publishSnapshot(ctx context.Context, output, inventoryPath string, options discovery.Options, collect collector) error {
@@ -22,6 +26,16 @@ func publishSnapshot(ctx context.Context, output, inventoryPath string, options 
 }
 
 func publishSnapshotWithDiff(ctx context.Context, output, diffOutput, inventoryPath string, options discovery.Options, collect collector) error {
+	return publishSnapshotWithDiffAndRemote(ctx, output, diffOutput, inventoryPath, options, collect, nil)
+}
+
+func publishSnapshotWithDiffAndRemote(
+	ctx context.Context,
+	output, diffOutput, inventoryPath string,
+	options discovery.Options,
+	collect collector,
+	remote remoteSnapshotPublisher,
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -100,6 +114,12 @@ func publishSnapshotWithDiff(ctx context.Context, output, diffOutput, inventoryP
 	}
 	for _, warning := range topology.Warnings {
 		slog.Warn(warning)
+	}
+	if remote != nil {
+		if err := remote.Publish(ctx, topology); err != nil {
+			return fmt.Errorf("publish snapshot to Topology Hub: %w", err)
+		}
+		slog.Info("Topology Hub synchronized", "nodes", len(topology.Nodes), "links", len(topology.Links))
 	}
 	return nil
 }
