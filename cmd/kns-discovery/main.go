@@ -23,6 +23,8 @@ func main() {
 func run() error {
 	output := flag.String("output", "output/network.json", "KNS topology snapshot file")
 	diffOutput := flag.String("diff-output", "", "optional structured diff JSON comparing each collection with the previous snapshot")
+	hubURL := flag.String("hub-url", "http://localhost:3001", "Topology Hub base URL used with --hub-topology")
+	hubTopology := flag.String("hub-topology", "", "optional existing Topology Hub topology ID to synchronize")
 	interval := flag.Duration("watch", 0, "repeat interval, e.g. 5s; zero collects once")
 	timeout := flag.Duration("timeout", 15*time.Second, "deadline for each OS collection")
 	iface := flag.String("interface", "", "exact interface name; empty includes all active interfaces")
@@ -43,6 +45,20 @@ func run() error {
 	if *diffOutput != "" && filepath.Clean(*diffOutput) == filepath.Clean(*output) {
 		return fmt.Errorf("diff-output must be different from output")
 	}
+
+	var remote remoteSnapshotPublisher
+	if *hubTopology != "" {
+		publisher, err := newTopologyHubPublisher(
+			*hubURL,
+			*hubTopology,
+			os.Getenv("KNS_TOPOLOGY_HUB_TOKEN"),
+		)
+		if err != nil {
+			return err
+		}
+		remote = publisher
+	}
+
 	options := discovery.Options{Interface: *iface, Bandwidth: *bandwidth, Delay: *delay}
 	if err := discovery.ValidateOptions(options); err != nil {
 		return err
@@ -63,7 +79,15 @@ func run() error {
 	collect := func() error {
 		attempt, cancel := context.WithTimeout(ctx, *timeout)
 		defer cancel()
-		return publishSnapshotWithDiff(attempt, *output, *diffOutput, *inventory, options, collector)
+		return publishSnapshotWithDiffAndRemote(
+			attempt,
+			*output,
+			*diffOutput,
+			*inventory,
+			options,
+			collector,
+			remote,
+		)
 	}
 	if *interval == 0 {
 		err := collect()
