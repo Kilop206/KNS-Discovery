@@ -97,6 +97,31 @@ is based on its routing role, not hardware fingerprinting.
 Links to a network segment represent inferred adjacency, not verified cables.
 Bandwidth, delay and loss are explicit simulation assumptions, not measurements.
 Snapshots contain local network identifiers: generated output is ignored by Git.
-Snapshots are limited to 4096 nodes, matching the KNS importer. Oversized
-collections fail without replacing the last published snapshot; select
-`--interface` to narrow the observation rather than silently dropping devices.
+
+
+## Snapshot diffs
+
+Watch mode can optionally publish a second JSON file describing the structural
+difference between the current collection and the previously published
+snapshot:
+
+```bash
+go run ./cmd/kns-discovery \
+  --watch 5s \
+  --output output/network.json \
+  --diff-output output/network.diff.json
+```
+
+The diff is deterministic and keyed by stable `external_id` values rather than
+the snapshot-local numeric node IDs. Numeric ID reordering alone therefore does
+not create false changes.
+
+The diff schema reports:
+
+- `baseline_available`;
+- added, removed, and changed node identities;
+- added, removed, and changed links using normalized endpoint identities.
+
+On the first collection, the baseline is unavailable and the current nodes and
+links are reported as additions. When a collection is identical to the previous
+snapshot, the diff is empty. Both topology and diff files use atomic replacement.
