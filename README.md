@@ -125,3 +125,42 @@ The diff schema reports:
 On the first collection, the baseline is unavailable and the current nodes and
 links are reported as additions. When a collection is identical to the previous
 snapshot, the diff is empty. Both topology and diff files use atomic replacement.
+
+
+## Topology Hub synchronization
+
+Discovery can optionally synchronize each successful snapshot into an existing
+Topology Hub topology while continuing to publish the local snapshot normally.
+
+Create a revocable Topology Hub desktop token with the `topologies` scope and
+keep it out of command-line arguments:
+
+```powershell
+$env:KNS_TOPOLOGY_HUB_TOKEN = "knsh_..."
+.\bin\kns-discovery.exe `
+  --watch 5s `
+  --output output/network.json `
+  --diff-output output/network.diff.json `
+  --hub-url http://localhost:3001 `
+  --hub-topology <topology-id>
+```
+
+On Linux/macOS, export the same environment variable before running the binary.
+
+The target topology must already exist and belong to the token user (or be
+editable by an administrator). Discovery preserves its title, description and
+visibility. Each actual remote topology change is sent with the Hub's current
+optimistic-lock version and creates an immutable revision with the canonical
+Discovery diff attached.
+
+Remote diffs are calculated against the graph currently stored in Topology Hub,
+not against the local snapshot file. This is intentional: if a Hub request fails
+after the local snapshot was written, the next watch cycle can still reconstruct
+the complete remote change and catch the Hub up. An unchanged Hub graph is not
+updated, so watch mode does not create empty revisions.
+
+Local publication remains authoritative for the collector process. A Hub failure
+does not roll the local snapshot back; it makes that collection attempt report an
+error and watch mode retries on a later cycle. Authentication failures, missing
+topologies and optimistic-lock conflicts are reported explicitly. The bearer
+token is never written to the snapshot or diff files.
