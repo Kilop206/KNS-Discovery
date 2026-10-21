@@ -36,9 +36,27 @@ type hubTopologyDetail struct {
 	Graph    discovery.Snapshot `json:"graph"`
 }
 
+// Keep this contract aligned with the desktop KNS client and Hub route.  The
+// identifier is part of a URL path segment, so accepting separators or escape
+// sequences here would produce a request for a different topology.
+func validHubTopologyID(value string) bool {
+	if len(value) == 0 || len(value) > 128 {
+		return false
+	}
+	for _, character := range value {
+		if !(character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '-' || character == '_') {
+			return false
+		}
+	}
+	return true
+}
+
 func newTopologyHubPublisher(baseURL, topologyID, token string) (*topologyHubPublisher, error) {
-	if strings.TrimSpace(topologyID) == "" {
-		return nil, fmt.Errorf("hub topology id must not be empty")
+	if !validHubTopologyID(topologyID) {
+		return nil, fmt.Errorf("hub topology id must contain 1 to 128 letters, digits, hyphens, or underscores")
 	}
 	if strings.TrimSpace(token) == "" {
 		return nil, fmt.Errorf("KNS_TOPOLOGY_HUB_TOKEN is required when --hub-topology is configured")
@@ -63,7 +81,7 @@ func newTopologyHubPublisher(baseURL, topologyID, token string) (*topologyHubPub
 
 func (publisher *topologyHubPublisher) endpoint() string {
 	base := *publisher.baseURL
-	base.Path = strings.TrimRight(base.Path, "/") + "/api/topologies/" + url.PathEscape(publisher.topologyID)
+	base.Path = strings.TrimRight(base.Path, "/") + "/api/topologies/" + publisher.topologyID
 	return base.String()
 }
 

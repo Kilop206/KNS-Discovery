@@ -142,6 +142,11 @@ func TestTopologyHubPublisherReportsConflictsAndInvalidConfiguration(t *testing.
 			t.Fatalf("accepted invalid Hub configuration: %+v", test)
 		}
 	}
+	for _, topologyID := range []string{"invalid/id", "space id", "%2f", strings.Repeat("a", 129)} {
+		if _, err := newTopologyHubPublisher("http://localhost:3001", topologyID, "token"); err == nil {
+			t.Fatalf("accepted topology ID that cannot be represented as one Hub path segment: %q", topologyID)
+		}
+	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Method == http.MethodGet {
