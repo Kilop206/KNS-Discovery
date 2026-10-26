@@ -70,7 +70,10 @@ network.
 
 ## Snapshot contract
 
-Snapshots use `schema_version: "1.0"`, `name`, `nodes` and `links`. Legacy KNS files
+Snapshots use `schema_version: "1.0"`, `name`, `nodes` and `links`. Successful
+OS collections also include `observed_at` in UTC, recording when the last
+published topology was observed. Repeated collections with an unchanged graph
+retain that timestamp and do not trigger a desktop reload. Legacy KNS files
 with an integer `nodes` field remain valid. Discovery snapshots use a node array:
 
 ```json

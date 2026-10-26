@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MaxNodes matches the KNS snapshot loader; oversized observations must not
@@ -50,6 +51,9 @@ func Build(observation Observation, options Options) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	result := Snapshot{SchemaVersion: "1.0", Name: "Local network", Nodes: []Node{}, Links: []Link{}}
+	if !observation.ObservedAt.IsZero() {
+		result.ObservedAt = observation.ObservedAt.UTC().Format(time.RFC3339Nano)
+	}
 	nodes := map[string]Node{}
 	edges := map[[2]string]bool{}
 	host := "host:" + observation.Hostname

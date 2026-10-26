@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"time"
 )
 
 // Collect fails as a whole if route/neighbor collection fails. Watch mode must
@@ -40,5 +41,6 @@ func Collect(ctx context.Context) (Observation, error) {
 	if err := collectNeighbors(ctx, &observation); err != nil {
 		return Observation{}, err
 	}
+	observation.ObservedAt = time.Now().UTC()
 	return observation, nil
 }

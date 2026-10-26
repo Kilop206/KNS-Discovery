@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"kns.local/discovery/internal/diff"
 	"kns.local/discovery/internal/discovery"
@@ -189,5 +190,39 @@ func TestPublishWritesStructuredDiffAcrossCollections(t *testing.T) {
 	}
 	if len(changed.ChangedNodes) != 1 || changed.ChangedNodes[0] != "host:example" {
 		t.Fatalf("inventory change not reflected in diff: %+v", changed)
+	}
+}
+
+func TestPublishKeepsObservationTimeUntilTopologyChanges(t *testing.T) {
+	directory := t.TempDir()
+	output := filepath.Join(directory, "network.json")
+	first := time.Date(2026, time.October, 26, 12, 0, 0, 0, time.UTC)
+	observedAt := first
+	collect := func(ctx context.Context) (discovery.Observation, error) {
+		observation, err := fixtureCollector(ctx)
+		observation.ObservedAt = observedAt
+		return observation, err
+	}
+	options := discovery.Options{Bandwidth: 100, Delay: 1}
+	if err := publishSnapshot(context.Background(), output, "", options, collect); err != nil {
+		t.Fatal(err)
+	}
+	initial := readBytes(t, output)
+	if !bytes.Contains(initial, []byte(`"observed_at": "2026-10-26T12:00:00Z"`)) {
+		t.Fatalf("missing UTC timestamp: %s", initial)
+	}
+	observedAt = first.Add(time.Minute)
+	if err := publishSnapshot(context.Background(), output, "", options, collect); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(initial, readBytes(t, output)) {
+		t.Fatal("unchanged collection rewrote published snapshot")
+	}
+	options.Delay = 2
+	if err := publishSnapshot(context.Background(), output, "", options, collect); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(readBytes(t, output), []byte(`"observed_at": "2026-10-26T12:01:00Z"`)) {
+		t.Fatal("changed topology did not advance observation timestamp")
 	}
 }

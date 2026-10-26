@@ -73,6 +73,12 @@ func publishSnapshotWithDiffAndRemote(
 		return fmt.Errorf("read previous snapshot for diff: %w", readErr)
 	}
 	changeSet := diff.Compare(baseline, topology)
+	// The published timestamp describes the last changed topology observation.
+	// Preserve it when polling finds the same graph so watch mode does not
+	// reload KNS or rewrite the local snapshot on every successful collection.
+	if baseline != nil && changeSet.Empty() && baseline.ObservedAt != "" {
+		topology.ObservedAt = baseline.ObservedAt
+	}
 
 	data, err := json.MarshalIndent(topology, "", "  ")
 	if err != nil {

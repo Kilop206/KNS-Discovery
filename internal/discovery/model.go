@@ -1,10 +1,14 @@
 package discovery
 
-import "net/netip"
+import (
+	"net/netip"
+	"time"
+)
 
 // Observation contains only data reported by the local operating system.
 type Observation struct {
 	Hostname   string
+	ObservedAt time.Time // Completion time of the OS collection.
 	Interfaces []Interface
 	Neighbors  []Neighbor
 	Gateways   []Gateway
@@ -52,6 +56,7 @@ type Link struct {
 
 type Snapshot struct {
 	SchemaVersion string   `json:"schema_version"`
+	ObservedAt    string   `json:"observed_at,omitempty"`
 	Name          string   `json:"name"`
 	Nodes         []Node   `json:"nodes"`
 	Links         []Link   `json:"links"`

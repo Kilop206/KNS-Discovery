@@ -8,11 +8,13 @@ import (
 	"os"
 	"slices"
 	"testing"
+	"time"
 )
 
 func fixture() Observation {
 	return Observation{
-		Hostname: "test-host",
+		Hostname:   "test-host",
+		ObservedAt: time.Date(2026, time.October, 26, 12, 0, 0, 0, time.FixedZone("fixture", -3*60*60)),
 		Interfaces: []Interface{{Index: 7, Name: "Ethernet", Prefixes: []netip.Prefix{
 			netip.MustParsePrefix("192.0.2.10/24"), netip.MustParsePrefix("fe80::10/64"),
 		}}},
@@ -72,6 +74,9 @@ func TestSnapshotSerializationConformsToTopologyV1ProducerContract(t *testing.T)
 	}
 	if document["schema_version"] != "1.0" {
 		t.Fatalf("unexpected schema_version: %v", document["schema_version"])
+	}
+	if document["observed_at"] != "2026-10-26T15:00:00Z" {
+		t.Fatalf("observation timestamp must be UTC: %v", document["observed_at"])
 	}
 	nodes, ok := document["nodes"].([]any)
 	if !ok || len(nodes) == 0 {
