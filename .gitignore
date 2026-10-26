@@ -2,3 +2,5 @@
 /output/
 *.exe
 coverage.out
+__pycache__/
+*.pyc

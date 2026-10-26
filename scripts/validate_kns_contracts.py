@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import tempfile
 import urllib.request
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
 
 
 KNS_BASE = "https://raw.githubusercontent.com/Kilop206/KNS/main"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_json(url: str) -> dict:
@@ -38,8 +43,34 @@ def main() -> int:
         "changed_links": ["host:a<->router:b"],
     }
     Draft202012Validator(schema).validate(representative)
+
+    topology_schema = load_json(f"{KNS_BASE}/contracts/topology-v1.schema.json")
+    snapshot_schema = load_json(f"{KNS_BASE}/contracts/discovery.snapshot.schema.json")
+    registry = Registry().with_resources(
+        (item["$id"], Resource.from_contents(item))
+        for item in (topology_schema, snapshot_schema)
+    )
+    validator = Draft202012Validator(
+        snapshot_schema, registry=registry, format_checker=FormatChecker()
+    )
+    with tempfile.TemporaryDirectory(prefix="kns-discovery-contract-") as temporary:
+        output = Path(temporary) / "snapshot.json"
+        environment = os.environ.copy()
+        environment["KNS_DISCOVERY_CONTRACT_OUTPUT"] = str(output)
+        subprocess.run(
+            ["go", "test", "./internal/discovery", "-run",
+             "^TestSnapshotSerializationConformsToTopologyV1ProducerContract$", "-count=1"],
+            check=True, cwd=ROOT, env=environment,
+        )
+        validator.validate(json.loads(output.read_text(encoding="utf-8")))
+
+    invalid = load_json(
+        f"{KNS_BASE}/contracts/fixtures/discovery.snapshot.invalid.json"
+    )
+    if validator.is_valid(invalid):
+        raise SystemExit("Canonical invalid discovery snapshot was accepted")
     print(
-        f"KNS Discovery VERSION {version} and diff fixture conform "
+        f"KNS Discovery VERSION {version}, diff fixture and Go snapshot conform "
         "to canonical KNS contracts."
     )
     return 0

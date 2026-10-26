@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/netip"
+	"os"
 	"slices"
 	"testing"
 )
@@ -51,7 +52,6 @@ func TestBuildLogicalTopology(t *testing.T) {
 	}
 }
 
-
 func TestSnapshotSerializationConformsToTopologyV1ProducerContract(t *testing.T) {
 	result, err := Build(fixture(), Options{Bandwidth: 100, Delay: 1})
 	if err != nil {
@@ -60,6 +60,11 @@ func TestSnapshotSerializationConformsToTopologyV1ProducerContract(t *testing.T)
 	raw, err := json.Marshal(result)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if output := os.Getenv("KNS_DISCOVERY_CONTRACT_OUTPUT"); output != "" {
+		if err := os.WriteFile(output, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	var document map[string]any
 	if err := json.Unmarshal(raw, &document); err != nil {

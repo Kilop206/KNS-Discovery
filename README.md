@@ -64,6 +64,9 @@ collection succeeds. Invalid static options (such as negative bandwidth) still
 fail immediately; single-collection mode reports collection failures and exits.
 
 Verify with `go test ./...` and `go vet ./...`.
+`python scripts/validate_kns_contracts.py` also runs a synthetic Go fixture
+through the canonical Discovery snapshot schema. It does not collect the local
+network.
 
 ## Snapshot contract
 
