@@ -28,7 +28,7 @@ func hubSnapshot(label string) discovery.Snapshot {
 	}
 }
 
-func TestTopologyHubPublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
+func TestTopologyStorePublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
 	var puts atomic.Int32
 	var received struct {
 		Title         string             `json:"title"`
@@ -44,7 +44,7 @@ func TestTopologyHubPublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
 			http.NotFound(response, request)
 			return
 		}
-		if request.Header.Get("Authorization") != "Bearer knsh_test" {
+		if request.Header.Get("Authorization") != "Bearer example-test" {
 			response.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -74,7 +74,7 @@ func TestTopologyHubPublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
 	}))
 	defer server.Close()
 
-	publisher, err := newTopologyHubPublisher(server.URL, "topology-1", "knsh_test")
+	publisher, err := newTopologyStorePublisher(server.URL, "topology-1", "example-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestTopologyHubPublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
 	}
 }
 
-func TestTopologyHubPublisherSkipsUnchangedRemoteSnapshot(t *testing.T) {
+func TestTopologyStorePublisherSkipsUnchangedRemoteSnapshot(t *testing.T) {
 	var puts atomic.Int32
 	current := hubSnapshot("Same")
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -117,7 +117,7 @@ func TestTopologyHubPublisherSkipsUnchangedRemoteSnapshot(t *testing.T) {
 	}))
 	defer server.Close()
 
-	publisher, err := newTopologyHubPublisher(server.URL, "same", "knsh_test")
+	publisher, err := newTopologyStorePublisher(server.URL, "same", "example-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestTopologyHubPublisherSkipsUnchangedRemoteSnapshot(t *testing.T) {
 	}
 }
 
-func TestTopologyHubPublisherReportsConflictsAndInvalidConfiguration(t *testing.T) {
+func TestTopologyStorePublisherReportsConflictsAndInvalidConfiguration(t *testing.T) {
 	for _, test := range []struct {
 		base, topology, token string
 	}{
@@ -138,12 +138,12 @@ func TestTopologyHubPublisherReportsConflictsAndInvalidConfiguration(t *testing.
 		{"http://localhost:3001", "", "token"},
 		{"http://localhost:3001", "id", ""},
 	} {
-		if _, err := newTopologyHubPublisher(test.base, test.topology, test.token); err == nil {
+		if _, err := newTopologyStorePublisher(test.base, test.topology, test.token); err == nil {
 			t.Fatalf("accepted invalid Hub configuration: %+v", test)
 		}
 	}
 	for _, topologyID := range []string{"invalid/id", "space id", "%2f", strings.Repeat("a", 129)} {
-		if _, err := newTopologyHubPublisher("http://localhost:3001", topologyID, "token"); err == nil {
+		if _, err := newTopologyStorePublisher("http://localhost:3001", topologyID, "token"); err == nil {
 			t.Fatalf("accepted topology ID that cannot be represented as one Hub path segment: %q", topologyID)
 		}
 	}
@@ -162,7 +162,7 @@ func TestTopologyHubPublisherReportsConflictsAndInvalidConfiguration(t *testing.
 	}))
 	defer server.Close()
 
-	publisher, err := newTopologyHubPublisher(server.URL, "conflict", "knsh_test")
+	publisher, err := newTopologyStorePublisher(server.URL, "conflict", "example-test")
 	if err != nil {
 		t.Fatal(err)
 	}

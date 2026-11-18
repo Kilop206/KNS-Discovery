@@ -123,9 +123,9 @@ func publishSnapshotWithDiffAndRemote(
 	}
 	if remote != nil {
 		if err := remote.Publish(ctx, topology); err != nil {
-			return fmt.Errorf("publish snapshot to Topology Hub: %w", err)
+			return fmt.Errorf("publish snapshot to topology store: %w", err)
 		}
-		slog.Info("Topology Hub synchronized", "nodes", len(topology.Nodes), "links", len(topology.Links))
+		slog.Info("topology store synchronized", "nodes", len(topology.Nodes), "links", len(topology.Links))
 	}
 	return nil
 }

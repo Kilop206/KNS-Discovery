@@ -23,8 +23,8 @@ func main() {
 func run() error {
 	output := flag.String("output", "output/network.json", "KNS topology snapshot file")
 	diffOutput := flag.String("diff-output", "", "optional structured diff JSON comparing each collection with the previous snapshot")
-	hubURL := flag.String("hub-url", "http://localhost:3001", "Topology Hub base URL used with --hub-topology")
-	hubTopology := flag.String("hub-topology", "", "optional existing Topology Hub topology ID to synchronize")
+	hubURL := flag.String("hub-url", "http://localhost:3001", "topology store base URL used with --hub-topology")
+	hubTopology := flag.String("hub-topology", "", "optional existing topology store topology ID to synchronize")
 	interval := flag.Duration("watch", 0, "repeat interval, e.g. 5s; zero collects once")
 	timeout := flag.Duration("timeout", 15*time.Second, "deadline for each OS collection")
 	iface := flag.String("interface", "", "exact interface name; empty includes all active interfaces")
@@ -48,10 +48,10 @@ func run() error {
 
 	var remote remoteSnapshotPublisher
 	if *hubTopology != "" {
-		publisher, err := newTopologyHubPublisher(
+		publisher, err := newTopologyStorePublisher(
 			*hubURL,
 			*hubTopology,
-			os.Getenv("KNS_TOPOLOGY_HUB_TOKEN"),
+			os.Getenv("KNS_TOPOLOGY_STORE_TOKEN"),
 		)
 		if err != nil {
 			return err

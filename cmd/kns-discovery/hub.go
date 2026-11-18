@@ -17,23 +17,23 @@ import (
 
 const maxHubResponseBytes = 2 << 20
 
-type topologyHubPublisher struct {
+type topologyStorePublisher struct {
 	baseURL    *url.URL
 	topologyID string
 	token      string
 	client     *http.Client
 }
 
-type hubTopologySummary struct {
+type storedTopologySummary struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Visibility  string `json:"visibility"`
 	Version     int64  `json:"version"`
 }
 
-type hubTopologyDetail struct {
-	Topology hubTopologySummary `json:"topology"`
-	Graph    discovery.Snapshot `json:"graph"`
+type storedTopologyDetail struct {
+	Topology storedTopologySummary `json:"topology"`
+	Graph    discovery.Snapshot    `json:"graph"`
 }
 
 // Keep this contract aligned with the desktop KNS client and Hub route.  The
@@ -54,12 +54,12 @@ func validHubTopologyID(value string) bool {
 	return true
 }
 
-func newTopologyHubPublisher(baseURL, topologyID, token string) (*topologyHubPublisher, error) {
+func newTopologyStorePublisher(baseURL, topologyID, token string) (*topologyStorePublisher, error) {
 	if !validHubTopologyID(topologyID) {
 		return nil, fmt.Errorf("hub topology id must contain 1 to 128 letters, digits, hyphens, or underscores")
 	}
 	if strings.TrimSpace(token) == "" {
-		return nil, fmt.Errorf("KNS_TOPOLOGY_HUB_TOKEN is required when --hub-topology is configured")
+		return nil, fmt.Errorf("KNS_TOPOLOGY_STORE_TOKEN is required when --hub-topology is configured")
 	}
 
 	parsed, err := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/"))
@@ -71,7 +71,7 @@ func newTopologyHubPublisher(baseURL, topologyID, token string) (*topologyHubPub
 		return nil, fmt.Errorf("hub-url must not contain a query or fragment")
 	}
 
-	return &topologyHubPublisher{
+	return &topologyStorePublisher{
 		baseURL:    parsed,
 		topologyID: topologyID,
 		token:      token,
@@ -79,13 +79,13 @@ func newTopologyHubPublisher(baseURL, topologyID, token string) (*topologyHubPub
 	}, nil
 }
 
-func (publisher *topologyHubPublisher) endpoint() string {
+func (publisher *topologyStorePublisher) endpoint() string {
 	base := *publisher.baseURL
 	base.Path = strings.TrimRight(base.Path, "/") + "/api/topologies/" + publisher.topologyID
 	return base.String()
 }
 
-func (publisher *topologyHubPublisher) request(
+func (publisher *topologyStorePublisher) request(
 	ctx context.Context,
 	method string,
 	body []byte,
@@ -114,7 +114,7 @@ func readHubBody(response *http.Response) ([]byte, error) {
 		return nil, err
 	}
 	if len(body) > maxHubResponseBytes {
-		return nil, fmt.Errorf("Topology Hub response exceeds %d bytes", maxHubResponseBytes)
+		return nil, fmt.Errorf("topology store response exceeds %d bytes", maxHubResponseBytes)
 	}
 	return body, nil
 }
@@ -122,51 +122,51 @@ func readHubBody(response *http.Response) ([]byte, error) {
 func hubStatusError(operation string, status int, body []byte) error {
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("%s: Topology Hub rejected the desktop token (HTTP %d)", operation, status)
+		return fmt.Errorf("%s: topology store rejected the desktop token (HTTP %d)", operation, status)
 	case http.StatusNotFound:
-		return fmt.Errorf("%s: Topology Hub topology was not found", operation)
+		return fmt.Errorf("%s: topology store topology was not found", operation)
 	case http.StatusConflict:
-		return fmt.Errorf("%s: Topology Hub topology changed concurrently; retry after reloading", operation)
+		return fmt.Errorf("%s: topology store topology changed concurrently; retry after reloading", operation)
 	default:
 		message := strings.TrimSpace(string(body))
 		if len(message) > 240 {
 			message = message[:240]
 		}
 		if message == "" {
-			return fmt.Errorf("%s: Topology Hub returned HTTP %d", operation, status)
+			return fmt.Errorf("%s: topology store returned HTTP %d", operation, status)
 		}
-		return fmt.Errorf("%s: Topology Hub returned HTTP %d: %s", operation, status, message)
+		return fmt.Errorf("%s: topology store returned HTTP %d: %s", operation, status, message)
 	}
 }
 
-func (publisher *topologyHubPublisher) current(ctx context.Context) (hubTopologyDetail, error) {
+func (publisher *topologyStorePublisher) current(ctx context.Context) (storedTopologyDetail, error) {
 	response, err := publisher.request(ctx, http.MethodGet, nil)
 	if err != nil {
-		return hubTopologyDetail{}, fmt.Errorf("fetch Hub topology: %w", err)
+		return storedTopologyDetail{}, fmt.Errorf("fetch Hub topology: %w", err)
 	}
 	body, err := readHubBody(response)
 	if err != nil {
-		return hubTopologyDetail{}, fmt.Errorf("read Hub topology: %w", err)
+		return storedTopologyDetail{}, fmt.Errorf("read Hub topology: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
-		return hubTopologyDetail{}, hubStatusError("fetch Hub topology", response.StatusCode, body)
+		return storedTopologyDetail{}, hubStatusError("fetch Hub topology", response.StatusCode, body)
 	}
 
-	var detail hubTopologyDetail
+	var detail storedTopologyDetail
 	if err := json.Unmarshal(body, &detail); err != nil {
-		return hubTopologyDetail{}, fmt.Errorf("decode Hub topology: %w", err)
+		return storedTopologyDetail{}, fmt.Errorf("decode Hub topology: %w", err)
 	}
 	if detail.Topology.Version < 0 || detail.Topology.Title == "" ||
 		(detail.Topology.Visibility != "PUBLIC" && detail.Topology.Visibility != "PRIVATE") {
-		return hubTopologyDetail{}, fmt.Errorf("Topology Hub returned an invalid topology detail")
+		return storedTopologyDetail{}, fmt.Errorf("topology store returned an invalid topology detail")
 	}
 	if detail.Graph.SchemaVersion != "" && detail.Graph.SchemaVersion != "1.0" {
-		return hubTopologyDetail{}, fmt.Errorf("Topology Hub returned unsupported topology schema %q", detail.Graph.SchemaVersion)
+		return storedTopologyDetail{}, fmt.Errorf("topology store returned unsupported topology schema %q", detail.Graph.SchemaVersion)
 	}
 	return detail, nil
 }
 
-func (publisher *topologyHubPublisher) Publish(ctx context.Context, topology discovery.Snapshot) error {
+func (publisher *topologyStorePublisher) Publish(ctx context.Context, topology discovery.Snapshot) error {
 	current, err := publisher.current(ctx)
 	if err != nil {
 		return err
