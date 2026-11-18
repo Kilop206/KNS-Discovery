@@ -61,16 +61,9 @@ func publishSnapshotWithDiffAndRemote(
 		return err
 	}
 
-	var baseline *discovery.Snapshot
-	if previous, readErr := os.ReadFile(output); readErr == nil {
-		decoded, decodeErr := discovery.DecodeSnapshot(previous)
-		if decodeErr != nil {
-			slog.Warn("previous snapshot is invalid; diff baseline unavailable", "error", decodeErr)
-		} else {
-			baseline = &decoded
-		}
-	} else if !os.IsNotExist(readErr) {
-		return fmt.Errorf("read previous snapshot for diff: %w", readErr)
+	baseline, err := readDiffBaseline(output)
+	if err != nil {
+		return err
 	}
 	changeSet := diff.Compare(baseline, topology)
 	// The published timestamp describes the last changed topology observation.
@@ -128,4 +121,24 @@ func publishSnapshotWithDiffAndRemote(
 		slog.Info("topology store synchronized", "nodes", len(topology.Nodes), "links", len(topology.Links))
 	}
 	return nil
+}
+
+func readDiffBaseline(path string) (*discovery.Snapshot, error) {
+	previous, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		// Treat an unreadable file as an I/O failure so missing access cannot
+		// produce a misleading diff containing only additions.
+		return nil, fmt.Errorf("read previous snapshot for diff: %w", err)
+	}
+	baseline, err := discovery.DecodeSnapshot(previous)
+	if err != nil {
+		// A corrupt file is already unusable as evidence. The next valid
+		// observation can replace it and establish a new baseline.
+		slog.Warn("previous snapshot is invalid; diff baseline unavailable", "error", err)
+		return nil, nil
+	}
+	return &baseline, nil
 }
