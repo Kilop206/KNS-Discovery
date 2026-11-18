@@ -226,3 +226,33 @@ func TestPublishKeepsObservationTimeUntilTopologyChanges(t *testing.T) {
 		t.Fatal("changed topology did not advance observation timestamp")
 	}
 }
+
+func TestPublishIgnoresIncompatibleBaseline(t *testing.T) {
+	for name, invalid := range map[string]string{
+		"unsupported version": `{"schema_version":"2.0","nodes":[{"id":0,"external_id":"host:example"}],"links":[]}`,
+		"invalid timestamp":   `{"schema_version":"1.0","observed_at":"yesterday","nodes":[{"id":0,"external_id":"host:example"}],"links":[]}`,
+		"duplicate ID":        `{"schema_version":"1.0","nodes":[{"id":0,"external_id":"a"},{"id":0,"external_id":"b"}],"links":[]}`,
+		"missing endpoint":    `{"schema_version":"1.0","nodes":[{"id":0,"external_id":"a"}],"links":[{"from":0,"to":1}]}`,
+		"null":                `null`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			directory := t.TempDir()
+			output := filepath.Join(directory, "network.json")
+			diffOutput := filepath.Join(directory, "network.diff.json")
+			if err := os.WriteFile(output, []byte(invalid), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := publishSnapshotWithDiff(context.Background(), output, diffOutput, "",
+				discovery.Options{Bandwidth: 100, Delay: 1}, fixtureCollector); err != nil {
+				t.Fatal(err)
+			}
+			var changes diff.Result
+			if err := json.Unmarshal(readBytes(t, diffOutput), &changes); err != nil {
+				t.Fatal(err)
+			}
+			if changes.BaselineAvailable || len(changes.AddedNodes) == 0 {
+				t.Fatalf("invalid snapshot was used for diff: %+v", changes)
+			}
+		})
+	}
+}

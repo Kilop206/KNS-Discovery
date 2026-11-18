@@ -50,7 +50,7 @@ func Build(observation Observation, options Options) (Snapshot, error) {
 	if err := ValidateOptions(options); err != nil {
 		return Snapshot{}, err
 	}
-	result := Snapshot{SchemaVersion: "1.0", Name: "Local network", Nodes: []Node{}, Links: []Link{}}
+	result := Snapshot{SchemaVersion: snapshotSchemaVersion, Name: "Local network", Nodes: []Node{}, Links: []Link{}}
 	if !observation.ObservedAt.IsZero() {
 		result.ObservedAt = observation.ObservedAt.UTC().Format(time.RFC3339Nano)
 	}

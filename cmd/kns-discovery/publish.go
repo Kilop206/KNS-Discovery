@@ -63,9 +63,9 @@ func publishSnapshotWithDiffAndRemote(
 
 	var baseline *discovery.Snapshot
 	if previous, readErr := os.ReadFile(output); readErr == nil {
-		var decoded discovery.Snapshot
-		if unmarshalErr := json.Unmarshal(previous, &decoded); unmarshalErr != nil {
-			slog.Warn("previous snapshot is invalid; diff baseline unavailable", "error", unmarshalErr)
+		decoded, decodeErr := discovery.DecodeSnapshot(previous)
+		if decodeErr != nil {
+			slog.Warn("previous snapshot is invalid; diff baseline unavailable", "error", decodeErr)
 		} else {
 			baseline = &decoded
 		}

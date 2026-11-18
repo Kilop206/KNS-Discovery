@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const snapshotSchemaVersion = "1.0"
+
 // Observation contains only data reported by the local operating system.
 type Observation struct {
 	Hostname   string
