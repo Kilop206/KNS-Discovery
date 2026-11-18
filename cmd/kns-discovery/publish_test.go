@@ -232,6 +232,8 @@ func TestPublishIgnoresIncompatibleBaseline(t *testing.T) {
 		"unsupported version": `{"schema_version":"2.0","nodes":[{"id":0,"external_id":"host:example"}],"links":[]}`,
 		"invalid timestamp":   `{"schema_version":"1.0","observed_at":"yesterday","nodes":[{"id":0,"external_id":"host:example"}],"links":[]}`,
 		"duplicate ID":        `{"schema_version":"1.0","nodes":[{"id":0,"external_id":"a"},{"id":0,"external_id":"b"}],"links":[]}`,
+		"omitted ID":          `{"schema_version":"1.0","nodes":[{"external_id":"a"}],"links":[]}`,
+		"omitted endpoint":    `{"schema_version":"1.0","nodes":[{"id":0,"external_id":"a"},{"id":1,"external_id":"b"}],"links":[{"to":1,"bandwidth":100}]}`,
 		"missing endpoint":    `{"schema_version":"1.0","nodes":[{"id":0,"external_id":"a"}],"links":[{"from":0,"to":1}]}`,
 		"null":                `null`,
 	} {
