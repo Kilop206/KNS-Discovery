@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 )
 
-// Write publishes a complete file and leaves the last good snapshot intact on
-// failure. Identical contents do not trigger an unnecessary live update.
+// Write leaves the last good snapshot intact on failure. Skipping identical
+// contents keeps file watchers from reloading a graph that did not change.
 func Write(path string, data []byte) (bool, error) {
 	previous, err := os.ReadFile(path)
 	if err == nil && bytes.Equal(previous, data) {
@@ -17,22 +17,26 @@ func Write(path string, data []byte) (bool, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("read previous snapshot: %w", err)
 	}
+	// A sibling temp file keeps replacement on the same filesystem, where
+	// readers can keep using the previous snapshot until the file is ready.
 	file, err := os.CreateTemp(filepath.Dir(path), ".kns-snapshot-*")
 	if err != nil {
 		return false, err
 	}
 	temporary := file.Name()
 	defer os.Remove(temporary)
-	if _, err := file.Write(data); err != nil {
-		file.Close()
-		return false, err
+	_, writeErr := file.Write(data)
+	if writeErr == nil {
+		writeErr = file.Sync()
 	}
-	if err := file.Sync(); err != nil {
-		file.Close()
-		return false, err
+	// Close before replacing so Windows can move the file. Preserve the
+	// write or sync error if closing also fails.
+	closeErr := file.Close()
+	if writeErr != nil {
+		return false, writeErr
 	}
-	if err := file.Close(); err != nil {
-		return false, err
+	if closeErr != nil {
+		return false, closeErr
 	}
 	if err := replaceFile(temporary, path); err != nil {
 		return false, err
