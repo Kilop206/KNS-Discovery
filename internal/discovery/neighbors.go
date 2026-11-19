@@ -32,11 +32,13 @@ func observedNeighbors(observation Observation) map[string]Neighbor {
 		}
 		neighbor.State = strings.ToLower(neighbor.State)
 		key := addressKey(neighbor.Interface, neighbor.Address)
-		previous, exists := selected[key]
-		if !exists || rank > neighborRank(previous.State) ||
-			(rank == neighborRank(previous.State) && neighbor.MAC < previous.MAC) {
-			selected[key] = neighbor
+		if previous, exists := selected[key]; exists {
+			previousRank := neighborRank(previous.State)
+			if rank < previousRank || (rank == previousRank && neighbor.MAC >= previous.MAC) {
+				continue
+			}
 		}
+		selected[key] = neighbor
 	}
 	return selected
 }
