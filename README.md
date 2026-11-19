@@ -131,3 +131,5 @@ The diff schema reports:
 On the first collection, the baseline is unavailable and the current nodes and
 links are reported as additions. When a collection is identical to the previous
 snapshot, the diff is empty. Both topology and diff files use atomic replacement.
+An invalid local baseline produces a warning. The next successful observation
+starts a new baseline, including its own UTC observation time when available.
