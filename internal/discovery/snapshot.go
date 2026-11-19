@@ -29,6 +29,7 @@ func DecodeSnapshot(data []byte) (Snapshot, error) {
 	if err := json.Unmarshal(data, &input); err != nil {
 		return Snapshot{}, err
 	}
+
 	snapshot := input.Snapshot
 	if snapshot.SchemaVersion != snapshotSchemaVersion {
 		return Snapshot{}, fmt.Errorf("unsupported snapshot schema_version %q", snapshot.SchemaVersion)
@@ -36,6 +37,7 @@ func DecodeSnapshot(data []byte) (Snapshot, error) {
 	if len(input.Nodes) == 0 || len(input.Nodes) > MaxNodes || input.Links == nil {
 		return Snapshot{}, fmt.Errorf("snapshot requires 1 to %d nodes and a links array", MaxNodes)
 	}
+
 	if snapshot.ObservedAt != "" {
 		// Go's parser accepts some forms outside the contract, including comma
 		// fractions. Reusing one would publish an invalid timestamp on the next poll.
@@ -44,6 +46,7 @@ func DecodeSnapshot(data []byte) (Snapshot, error) {
 			return Snapshot{}, fmt.Errorf("snapshot observed_at must be a UTC timestamp")
 		}
 	}
+
 	snapshot.Nodes = make([]Node, 0, len(input.Nodes))
 	seenNodeIDs := make(map[int]bool, len(input.Nodes))
 	seenExternalIDs := make(map[string]bool, len(input.Nodes))
@@ -58,6 +61,7 @@ func DecodeSnapshot(data []byte) (Snapshot, error) {
 		seenExternalIDs[node.ExternalID] = true
 		snapshot.Nodes = append(snapshot.Nodes, node)
 	}
+
 	snapshot.Links = make([]Link, 0, len(input.Links))
 	seenLinkPairs := make(map[[2]int]bool, len(input.Links))
 	for _, entry := range input.Links {

@@ -10,7 +10,6 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
-
 KNS_BASE = "https://raw.githubusercontent.com/Kilop206/KNS/main"
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -58,9 +57,17 @@ def main() -> int:
         environment = os.environ.copy()
         environment["KNS_DISCOVERY_CONTRACT_OUTPUT"] = str(output)
         subprocess.run(
-            ["go", "test", "./internal/discovery", "-run",
-             "^TestSnapshotSerializationConformsToTopologyV1ProducerContract$", "-count=1"],
-            check=True, cwd=ROOT, env=environment,
+            [
+                "go",
+                "test",
+                "./internal/discovery",
+                "-run",
+                "^TestSnapshotSerializationConformsToTopologyV1ProducerContract$",
+                "-count=1",
+            ],
+            check=True,
+            cwd=ROOT,
+            env=environment,
         )
         validator.validate(json.loads(output.read_text(encoding="utf-8")))
 

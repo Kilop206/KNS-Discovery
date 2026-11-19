@@ -52,10 +52,12 @@ func publishSnapshotWithDiffAndRemote(
 			return fmt.Errorf("inventory %q must be a JSON object; use {} to clear overrides", inventoryPath)
 		}
 	}
+
 	observation, err := collect(ctx)
 	if err != nil {
 		return err
 	}
+
 	topology, err := discovery.Build(observation, options)
 	if err != nil {
 		return err
@@ -80,6 +82,7 @@ func publishSnapshotWithDiffAndRemote(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	changed, err := snapshot.Write(output, append(data, '\n'))
 	if err != nil {
 		return err
@@ -114,6 +117,7 @@ func publishSnapshotWithDiffAndRemote(
 	for _, warning := range topology.Warnings {
 		slog.Warn(warning)
 	}
+
 	if remote != nil {
 		if err := remote.Publish(ctx, topology); err != nil {
 			return fmt.Errorf("publish snapshot to topology store: %w", err)
