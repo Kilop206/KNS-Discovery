@@ -68,6 +68,19 @@ Verify with `go test ./...` and `go vet ./...`.
 through the canonical Discovery snapshot schema. It does not collect the local
 network.
 
+To synchronize an existing Topology Store document from a saved Discovery
+snapshot, use `--input-snapshot`:
+
+```bash
+kns-discovery --input-snapshot output/network.json --hub-url https://hub.example.com --hub-topology TOPOLOGY_ID
+```
+
+Set `KNS_TOPOLOGY_STORE_TOKEN` to a token with topology access. This mode
+validates the saved file, preserves its observation timestamp and compares
+against the stored graph before writing a revision. It leaves the input file
+untouched and does not run the collector. Collection flags such as `--watch`
+and `--output` apply only to live collection.
+
 ## Snapshot contract
 
 Snapshots use `schema_version: "1.0"`, `name`, `nodes` and `links`. Successful

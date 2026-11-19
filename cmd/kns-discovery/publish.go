@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -17,6 +18,43 @@ type collector func(context.Context) (discovery.Observation, error)
 
 type remoteSnapshotPublisher interface {
 	Publish(context.Context, discovery.Snapshot) error
+}
+
+// Hub limits the entire update body to 1 MiB, including the revision metadata.
+const maxSavedSnapshotBytes = 1 << 20
+
+func publishSavedSnapshot(ctx context.Context, filename string, remote remoteSnapshotPublisher) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	info, err := os.Stat(filename)
+	if err != nil {
+		return fmt.Errorf("inspect input snapshot: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Size() > maxSavedSnapshotBytes {
+		return fmt.Errorf("input snapshot must be a regular file of at most 1 MiB")
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("open input snapshot: %w", err)
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxSavedSnapshotBytes+1))
+	if err != nil {
+		return fmt.Errorf("read input snapshot: %w", err)
+	}
+	if len(data) > maxSavedSnapshotBytes {
+		return fmt.Errorf("input snapshot exceeds 1 MiB")
+	}
+	topology, err := discovery.DecodeSnapshot(data)
+	if err != nil {
+		return fmt.Errorf("invalid input snapshot: %w", err)
+	}
+	if err := remote.Publish(ctx, topology); err != nil {
+		return fmt.Errorf("publish input snapshot to topology store: %w", err)
+	}
+	slog.Info("saved snapshot synchronized", "nodes", len(topology.Nodes), "links", len(topology.Links))
+	return nil
 }
 
 // Each attempt reads a fresh inventory. Invalid or partially written input never

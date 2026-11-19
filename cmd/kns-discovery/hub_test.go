@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -78,8 +80,21 @@ func TestTopologyStorePublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := publisher.Publish(context.Background(), hubSnapshot("New name")); err != nil {
+	input := filepath.Join(t.TempDir(), "saved.json")
+	saved := hubSnapshot("New name")
+	saved.ObservedAt = "2026-10-26T15:00:00Z"
+	data, err := json.Marshal(saved)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if err := os.WriteFile(input, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := publishSavedSnapshot(context.Background(), input, publisher); err != nil {
+		t.Fatal(err)
+	}
+	if current, err := os.ReadFile(input); err != nil || !bytes.Equal(current, data) {
+		t.Fatal("saved snapshot was changed")
 	}
 	if puts.Load() != 1 {
 		t.Fatalf("expected one update, got %d", puts.Load())
@@ -88,7 +103,7 @@ func TestTopologyStorePublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
 		received.Description != "Discovered" || received.Visibility != "PRIVATE" {
 		t.Fatalf("Hub metadata was not preserved: %+v", received)
 	}
-	if received.Graph.Nodes[0].Label != "New name" {
+	if received.Graph.Nodes[0].Label != "New name" || received.Graph.ObservedAt != saved.ObservedAt {
 		t.Fatalf("new snapshot was not sent: %+v", received.Graph)
 	}
 	if !received.DiscoveryDiff.BaselineAvailable ||
@@ -175,6 +190,25 @@ func TestTopologyStorePublisherReportsConflictsAndInvalidConfiguration(t *testin
 type recordingRemotePublisher struct {
 	calls int
 	err   error
+}
+
+func TestSavedSnapshotRejectsInvalidOrOversizedInputBeforePublishing(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "saved.json")
+	remote := &recordingRemotePublisher{}
+	for _, data := range []string{
+		`{"schema_version":"1.0","nodes":[{"external_id":"host:a"}],"links":[]}`,
+		strings.Repeat(" ", maxSavedSnapshotBytes+1),
+	} {
+		if err := os.WriteFile(file, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := publishSavedSnapshot(context.Background(), file, remote); err == nil {
+			t.Fatal("invalid input was accepted")
+		}
+	}
+	if remote.calls != 0 {
+		t.Fatalf("invalid files triggered %d store requests", remote.calls)
+	}
 }
 
 func (publisher *recordingRemotePublisher) Publish(context.Context, discovery.Snapshot) error {

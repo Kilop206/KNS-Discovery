@@ -22,6 +22,7 @@ func main() {
 
 func run() error {
 	output := flag.String("output", "output/network.json", "KNS topology snapshot file")
+	input := flag.String("input-snapshot", "", "publish a saved Discovery snapshot without collecting the host network")
 	diffOutput := flag.String("diff-output", "", "optional structured diff JSON comparing each collection with the previous snapshot")
 	hubURL := flag.String("hub-url", "http://localhost:3001", "topology store base URL used with --hub-topology")
 	hubTopology := flag.String("hub-topology", "", "optional existing topology store topology ID to synchronize")
@@ -38,6 +39,24 @@ func run() error {
 	}
 	if *interval < 0 || (*interval > 0 && *interval < time.Second) || *timeout <= 0 {
 		return fmt.Errorf("watch must be zero or at least 1s; timeout must be positive")
+	}
+	if *input != "" {
+		if *hubTopology == "" {
+			return fmt.Errorf("input-snapshot requires --hub-topology")
+		}
+		var incompatible string
+		flag.Visit(func(value *flag.Flag) {
+			switch value.Name {
+			case "input-snapshot", "hub-url", "hub-topology", "timeout":
+			default:
+				if incompatible == "" {
+					incompatible = value.Name
+				}
+			}
+		})
+		if incompatible != "" {
+			return fmt.Errorf("--%s cannot be combined with --input-snapshot", incompatible)
+		}
 	}
 	if *output == "" {
 		return fmt.Errorf("output must be a file path")
@@ -59,6 +78,18 @@ func run() error {
 		remote = publisher
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	if *input != "" {
+		attempt, cancel := context.WithTimeout(ctx, *timeout)
+		defer cancel()
+		err := publishSavedSnapshot(attempt, *input, remote)
+		if ctx.Err() != nil {
+			return nil
+		}
+		return err
+	}
+
 	options := discovery.Options{Interface: *iface, Bandwidth: *bandwidth, Delay: *delay}
 	if err := discovery.ValidateOptions(options); err != nil {
 		return err
@@ -66,8 +97,6 @@ func run() error {
 	if err := os.MkdirAll(filepath.Dir(*output), 0700); err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
 	identifier := discovery.NewIdentifier()
 	collector := func(ctx context.Context) (discovery.Observation, error) {
 		observation, err := discovery.Collect(ctx)
