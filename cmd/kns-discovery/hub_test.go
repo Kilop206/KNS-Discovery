@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"kns.local/discovery/internal/diff"
 	"kns.local/discovery/internal/discovery"
@@ -28,6 +29,41 @@ func hubSnapshot(label string) discovery.Snapshot {
 		Links: []discovery.Link{
 			{From: 0, To: 1, Bandwidth: 100, Delay: 1, Loss: 0, Inferred: true, Evidence: "shared_segment"},
 		},
+	}
+}
+
+func TestTopologyStoreErrorsDoNotWaitForUnfinishedResponseBodies(t *testing.T) {
+	for _, phase := range []string{"fetch", "update"} {
+		for status, message := range map[int]string{
+			401: "rejected the desktop token", 403: "rejected the desktop token",
+			404: "was not found", 409: "changed concurrently", 500: "HTTP 500",
+		} {
+			t.Run(fmt.Sprintf("%s-%d", phase, status), func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if phase == "update" && r.Method == http.MethodGet {
+						json.NewEncoder(w).Encode(storedTopologyDetail{
+							Topology: storedTopologySummary{Title: "Office", Visibility: "PRIVATE", Version: 1},
+							Graph:    hubSnapshot("Old"),
+						})
+						return
+					}
+					w.Header().Set("Content-Length", "1024")
+					w.WriteHeader(status)
+					w.(http.Flusher).Flush()
+					<-r.Context().Done()
+				}))
+				defer server.Close()
+				publisher, err := newTopologyStorePublisher(server.URL, "one", "secret")
+				if err != nil {
+					t.Fatal(err)
+				}
+				publisher.client.Timeout = time.Second
+				err = publisher.Publish(context.Background(), hubSnapshot("New"))
+				if err == nil || !strings.Contains(err.Error(), message) {
+					t.Fatalf("expected HTTP status diagnosis without reading the unfinished body, got %v", err)
+				}
+			})
+		}
 	}
 }
 

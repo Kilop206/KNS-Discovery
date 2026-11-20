@@ -125,7 +125,7 @@ func readHubBody(response *http.Response) ([]byte, error) {
 	return body, nil
 }
 
-func hubStatusError(operation string, status int, body []byte) error {
+func hubStatusError(operation string, status int) error {
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return fmt.Errorf("%s: topology store rejected the desktop token (HTTP %d)", operation, status)
@@ -134,14 +134,7 @@ func hubStatusError(operation string, status int, body []byte) error {
 	case http.StatusConflict:
 		return fmt.Errorf("%s: topology store topology changed concurrently; retry after reloading", operation)
 	default:
-		message := strings.TrimSpace(string(body))
-		if len(message) > 240 {
-			message = message[:240]
-		}
-		if message == "" {
-			return fmt.Errorf("%s: topology store returned HTTP %d", operation, status)
-		}
-		return fmt.Errorf("%s: topology store returned HTTP %d: %s", operation, status, message)
+		return fmt.Errorf("%s: topology store returned HTTP %d", operation, status)
 	}
 }
 
@@ -150,12 +143,13 @@ func (publisher *topologyStorePublisher) current(ctx context.Context) (storedTop
 	if err != nil {
 		return storedTopologyDetail{}, fmt.Errorf("fetch Hub topology: %w", err)
 	}
+	if response.StatusCode != http.StatusOK {
+		response.Body.Close()
+		return storedTopologyDetail{}, hubStatusError("fetch Hub topology", response.StatusCode)
+	}
 	body, err := readHubBody(response)
 	if err != nil {
 		return storedTopologyDetail{}, fmt.Errorf("read Hub topology: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		return storedTopologyDetail{}, hubStatusError("fetch Hub topology", response.StatusCode, body)
 	}
 
 	var detail storedTopologyDetail
@@ -210,12 +204,13 @@ func (publisher *topologyStorePublisher) Publish(ctx context.Context, topology d
 	if err != nil {
 		return fmt.Errorf("update Hub topology: %w", err)
 	}
-	body, err := readHubBody(response)
+	if response.StatusCode != http.StatusOK {
+		response.Body.Close()
+		return hubStatusError("update Hub topology", response.StatusCode)
+	}
+	_, err = readHubBody(response)
 	if err != nil {
 		return fmt.Errorf("read Hub update response: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		return hubStatusError("update Hub topology", response.StatusCode, body)
 	}
 	return nil
 }

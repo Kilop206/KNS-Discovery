@@ -88,6 +88,9 @@ redirect responses. Set the final gateway URL when publishing through a proxy.
 The complete store update, including revision metadata and the discovery diff,
 must fit within 1 MiB. Oversized updates fail locally before a mutation is sent.
 
+HTTP errors are diagnosed from the status code and the response is closed
+immediately, so an unfinished error body cannot delay token or conflict diagnostics.
+
 ## Snapshot contract
 
 Snapshots use `schema_version: "1.0"`, `name`, `nodes` and `links`. Successful
