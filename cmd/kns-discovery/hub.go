@@ -16,6 +16,7 @@ import (
 )
 
 const maxHubResponseBytes = 2 << 20
+const maxHubRequestBytes = 1 << 20
 
 type topologyStorePublisher struct {
 	baseURL    *url.URL
@@ -200,6 +201,9 @@ func (publisher *topologyStorePublisher) Publish(ctx context.Context, topology d
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("encode Hub topology update: %w", err)
+	}
+	if len(data) > maxHubRequestBytes {
+		return fmt.Errorf("topology store update exceeds 1 MiB including revision metadata and discovery diff")
 	}
 
 	response, err := publisher.request(ctx, http.MethodPut, data)

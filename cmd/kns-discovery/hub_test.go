@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,6 +28,44 @@ func hubSnapshot(label string) discovery.Snapshot {
 		Links: []discovery.Link{
 			{From: 0, To: 1, Bandwidth: 100, Delay: 1, Loss: 0, Inferred: true, Evidence: "shared_segment"},
 		},
+	}
+}
+
+func TestTopologyStoreRejectsOversizedUpdateEnvelopeBeforeMutation(t *testing.T) {
+	var puts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			puts.Add(1)
+			w.Write([]byte("{}"))
+			return
+		}
+		json.NewEncoder(w).Encode(storedTopologyDetail{
+			Topology: storedTopologySummary{Title: "Office", Visibility: "PRIVATE", Version: 1},
+			Graph:    hubSnapshot("Old"),
+		})
+	}))
+	defer server.Close()
+	publisher, err := newTopologyStorePublisher(server.URL, "one", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	graph := hubSnapshot("New")
+	for id := 2; id < 1700; id++ {
+		graph.Nodes = append(graph.Nodes, discovery.Node{
+			ID: id, ExternalID: fmt.Sprintf("host:%s%d", strings.Repeat("x", 75), id),
+			Label: strings.Repeat("x", 200), Type: "computer",
+		})
+		graph.Links = append(graph.Links, discovery.Link{From: 1, To: id, Bandwidth: 100, Delay: 1})
+	}
+	graphBytes, err := json.Marshal(graph)
+	if err != nil || len(graphBytes) > 800000 {
+		t.Fatalf("fixture must fit the Hub graph budget: %d bytes, %v", len(graphBytes), err)
+	}
+	if err := publisher.Publish(context.Background(), graph); err == nil || !strings.Contains(err.Error(), "exceeds 1 MiB") {
+		t.Fatalf("oversized envelope accepted or unexpected error: %v", err)
+	}
+	if puts.Load() != 0 {
+		t.Fatal("oversized update reached the Hub")
 	}
 }
 
