@@ -91,6 +91,11 @@ must fit within 1 MiB. Oversized updates fail locally before a mutation is sent.
 HTTP errors are diagnosed from the status code and the response is closed
 immediately, so an unfinished error body cannot delay token or conflict diagnostics.
 
+Publishing also supports legacy Hub graphs with an integer `nodes` count. Their
+previous identities are recorded as `id:0`, `id:1` and so on in the diff. The stored
+baseline requires unique node identities, existing link endpoints and at most one
+link per unordered pair; ambiguous baselines fail before an update is sent.
+
 ## Snapshot contract
 
 Snapshots use `schema_version: "1.0"`, `name`, `nodes` and `links`. Successful
