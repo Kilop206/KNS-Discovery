@@ -30,6 +30,41 @@ func hubSnapshot(label string) discovery.Snapshot {
 	}
 }
 
+func TestTopologyStoreRejectsCredentialURLsAndDoesNotFollowRedirects(t *testing.T) {
+	if _, err := newTopologyStorePublisher("https://user:password@example.invalid", "one", "secret"); err == nil {
+		t.Fatal("URL credentials accepted")
+	}
+	var redirected atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirected.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	for _, method := range []string{http.MethodGet, http.MethodPut} {
+		for _, status := range []int{302, 307, 308} {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, target.URL, status)
+			}))
+			publisher, err := newTopologyStorePublisher(server.URL, "one", "secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			response, err := publisher.request(context.Background(), method, []byte("{}"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			response.Body.Close()
+			server.Close()
+			if response.StatusCode != status {
+				t.Fatalf("redirect was followed for %s", method)
+			}
+		}
+	}
+	if redirected.Load() != 0 {
+		t.Fatal("redirect target received a request")
+	}
+}
+
 func TestTopologyStorePublisherUpdatesWithRemoteRelativeDiff(t *testing.T) {
 	var puts atomic.Int32
 	var received struct {

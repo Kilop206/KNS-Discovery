@@ -81,6 +81,10 @@ against the stored graph before writing a revision. It leaves the input file
 untouched and does not run the collector. Collection flags such as `--watch`
 and `--output` apply only to live collection.
 
+The Hub base URL accepts HTTP or HTTPS with a host and without embedded
+credentials, query or fragment. Requests keep the configured endpoint and reject
+redirect responses. Set the final gateway URL when publishing through a proxy.
+
 ## Snapshot contract
 
 Snapshots use `schema_version: "1.0"`, `name`, `nodes` and `links`. Successful

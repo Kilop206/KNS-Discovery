@@ -67,15 +67,20 @@ func newTopologyStorePublisher(baseURL, topologyID, token string) (*topologyStor
 		(parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return nil, fmt.Errorf("hub-url must be an absolute http or https URL")
 	}
-	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return nil, fmt.Errorf("hub-url must not contain a query or fragment")
+	if parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil {
+		return nil, fmt.Errorf("hub-url must not contain credentials, a query or fragment")
 	}
 
 	return &topologyStorePublisher{
 		baseURL:    parsed,
 		topologyID: topologyID,
 		token:      token,
-		client:     &http.Client{Timeout: 15 * time.Second},
+		client: &http.Client{
+			Timeout: 15 * time.Second,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}, nil
 }
 
